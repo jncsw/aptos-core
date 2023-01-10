@@ -15,6 +15,7 @@ use std::process::exit;
 
 #[tokio::main]
 async fn main() {
+    println!("Aptos is a one stop tool for operations, debugging, and other operations with the blockchain");
     // Register hooks
     move_tool::register_package_hooks();
     // Run the corresponding tools
