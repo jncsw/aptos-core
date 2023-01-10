@@ -91,6 +91,8 @@ pub fn fuzz_target(
         format_err!("Fuzzing requires CARGO_MANIFEST_DIR to be set (are you using `cargo run`?)")
     })?;
 
+    println!("Running fuzz args: {:?}", args);
+
     let status = Command::new("cargo")
         .arg("fuzz")
         .arg("run")

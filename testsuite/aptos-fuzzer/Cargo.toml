@@ -44,6 +44,7 @@ rand = { workspace = true }
 rusty-fork = { workspace = true }
 sha-1 = { workspace = true }
 structopt = { workspace = true }
+move-bytecode-verifier = { workspace = true }
 
 [dev-dependencies]
 datatest-stable = { workspace = true }

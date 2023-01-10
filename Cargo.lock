@@ -1221,6 +1221,7 @@ dependencies = [
  "datatest-stable",
  "hex",
  "move-binary-format",
+ "move-bytecode-verifier",
  "move-core-types",
  "move-vm-types",
  "once_cell",

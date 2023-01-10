@@ -18,6 +18,7 @@ mod secure_storage_vault;
 mod storage;
 mod transaction;
 mod vm;
+mod overflow;
 
 // TODO(joshlind): add a fuzzer for state sync v2!
 
@@ -87,6 +88,8 @@ static ALL_TARGETS: Lazy<BTreeMap<&'static str, Box<dyn FuzzTargetImpl>>> = Lazy
         Box::<transaction::TwoSignedTransactions>::default(),
         // VM
         Box::<vm::CompiledModuleTarget>::default(),
+        // Overflow
+        Box::new(overflow::Overflowfuzzer::default()),
     ];
     targets
         .into_iter()
