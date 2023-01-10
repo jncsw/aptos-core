@@ -7,14 +7,15 @@ use crate::{
         buffer_manager::{OrderedBlocks, ResetAck, ResetRequest},
         errors::Error,
     },
+    payload_manager::PayloadManager,
     state_replication::{StateComputer, StateComputerCommitCallBackType},
 };
 use anyhow::Result;
+use aptos_consensus_types::{block::Block, executed_block::ExecutedBlock};
 use aptos_crypto::HashValue;
+use aptos_executor_types::{Error as ExecutionError, StateComputeResult};
 use aptos_logger::prelude::*;
 use aptos_types::{epoch_state::EpochState, ledger_info::LedgerInfoWithSignatures};
-use consensus_types::{block::Block, executed_block::ExecutedBlock};
-use executor_types::{Error as ExecutionError, StateComputeResult};
 use fail::fail_point;
 use futures::{
     channel::{mpsc::UnboundedSender, oneshot},
@@ -117,5 +118,5 @@ impl StateComputer for OrderingStateComputer {
         Ok(())
     }
 
-    fn new_epoch(&self, _: &EpochState) {}
+    fn new_epoch(&self, _: &EpochState, _payload_manager: Arc<PayloadManager>) {}
 }

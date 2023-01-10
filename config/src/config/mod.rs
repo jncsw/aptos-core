@@ -101,6 +101,7 @@ pub struct NodeConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct BaseConfig {
     pub data_dir: PathBuf,
+    pub working_dir: Option<PathBuf>,
     pub role: RoleType,
     pub waypoint: WaypointConfig,
 }
@@ -109,6 +110,7 @@ impl Default for BaseConfig {
     fn default() -> BaseConfig {
         BaseConfig {
             data_dir: PathBuf::from("/opt/aptos/data"),
+            working_dir: None,
             role: RoleType::Validator,
             waypoint: WaypointConfig::None,
         }
@@ -157,7 +159,7 @@ impl WaypointConfig {
                         error
                     )
                 }))
-            }
+            },
             WaypointConfig::FromStorage(backend) => {
                 let storage: Storage = backend.into();
                 let waypoint = storage
@@ -165,7 +167,7 @@ impl WaypointConfig {
                     .expect("Unable to read waypoint")
                     .value;
                 Some(waypoint)
-            }
+            },
             WaypointConfig::None => None,
         };
         waypoint.expect("waypoint should be present")
@@ -179,7 +181,7 @@ impl WaypointConfig {
                     .get::<Waypoint>(aptos_global_constants::GENESIS_WAYPOINT)
                     .expect("Unable to read waypoint")
                     .value
-            }
+            },
             _ => self.waypoint(),
         }
     }
@@ -266,6 +268,13 @@ impl NodeConfig {
         &self.base.data_dir
     }
 
+    pub fn working_dir(&self) -> &Path {
+        match &self.base.working_dir {
+            Some(working_dir) => working_dir,
+            None => &self.base.data_dir,
+        }
+    }
+
     pub fn set_data_dir(&mut self, data_dir: PathBuf) {
         self.base.data_dir = data_dir.clone();
         self.consensus.set_data_dir(data_dir.clone());
@@ -346,7 +355,7 @@ impl NodeConfig {
                         self.indexer.starting_version
                     );
                     self.indexer.starting_version
-                }
+                },
             },
         };
 
@@ -593,7 +602,7 @@ mod test {
     fn verify_parse_role_error_on_invalid_role() {
         let invalid_role_type = "this is not a valid role type";
         match RoleType::from_str(invalid_role_type) {
-            Err(ParseRoleError(_)) => { /* the expected error was thrown! */ }
+            Err(ParseRoleError(_)) => { /* the expected error was thrown! */ },
             _ => panic!("A ParseRoleError should have been thrown on the invalid role type!"),
         }
     }

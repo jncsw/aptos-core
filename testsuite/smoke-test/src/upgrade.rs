@@ -6,15 +6,14 @@ use crate::{
     test_utils::check_create_mint_transfer, workspace_builder, workspace_builder::workspace_root,
 };
 use aptos_crypto::ValidCryptoMaterialStringExt;
+use aptos_forge::Swarm;
 use aptos_gas::{AptosGasParameters, GasQuantity, InitialGasSchedule, ToOnChainGasSchedule};
 use aptos_release_builder::components::{
     feature_flags::{FeatureFlag, Features},
     gas::generate_gas_upgrade_proposal,
 };
 use aptos_temppath::TempPath;
-use forge::Swarm;
-use std::fs;
-use std::process::Command;
+use std::{fs, process::Command};
 
 #[tokio::test]
 /// This test verifies the flow of aptos framework upgrade process.
@@ -44,10 +43,10 @@ async fn test_upgrade_flow() {
 
     let gas_schedule = aptos_types::on_chain_config::GasScheduleV2 {
         feature_version: aptos_gas::LATEST_GAS_FEATURE_VERSION,
-        entries: gas_parameters.to_on_chain_gas_schedule(),
+        entries: gas_parameters.to_on_chain_gas_schedule(aptos_gas::LATEST_GAS_FEATURE_VERSION),
     };
 
-    let (_, update_gas_script) = generate_gas_upgrade_proposal(&gas_schedule, true)
+    let (_, update_gas_script) = generate_gas_upgrade_proposal(&gas_schedule, true, "".to_owned())
         .unwrap()
         .pop()
         .unwrap();

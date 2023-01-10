@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::NetworkLoadTest;
+use aptos_forge::{EmitJobMode, NetworkContext, NetworkTest, Result, Test, TxnStats};
 use aptos_logger::info;
-use forge::{EmitJobMode, NetworkContext, NetworkTest, Result, Test, TxnStats};
 use rand::SeedableRng;
 use std::time::Duration;
 use tokio::runtime::Runtime;
@@ -57,7 +57,7 @@ impl LoadVsPerfBenchmark {
 
 impl NetworkTest for LoadVsPerfBenchmark {
     fn run<'t>(&self, ctx: &mut NetworkContext<'t>) -> Result<()> {
-        let runtime = Runtime::new().unwrap();
+        let _runtime = Runtime::new().unwrap();
         let individual_with_buffer = ctx
             .global_duration
             .checked_div(self.tps.len() as u32)
@@ -76,8 +76,9 @@ impl NetworkTest for LoadVsPerfBenchmark {
             let result = self.evaluate_single(ctx, *tps, individual_duration)?;
             results.push(result);
 
-            let mut aptos_info = ctx.swarm().aptos_public_info();
-            runtime.block_on(aptos_info.reconfig());
+            // Note: uncomment below to perform reconfig during a test
+            // let mut aptos_info = ctx.swarm().aptos_public_info();
+            // runtime.block_on(aptos_info.reconfig());
 
             println!(
                 "{: <12} | {: <12} | {: <12} | {: <12} | {: <12} | {: <12} | {: <12} | {: <12} | {: <12} | {: <12} | {: <12}",

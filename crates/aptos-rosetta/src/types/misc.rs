@@ -1,10 +1,12 @@
 // Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::common::native_coin;
-use crate::error::ApiError;
-use crate::types::{AccountIdentifier, Amount};
-use crate::{AccountAddress, ApiResult};
+use crate::{
+    common::native_coin,
+    error::ApiError,
+    types::{AccountIdentifier, Amount},
+    AccountAddress, ApiResult,
+};
 use aptos_types::stake_pool::StakePool;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -90,6 +92,7 @@ pub enum OperationType {
     SetOperator,
     SetVoter,
     InitializeStakePool,
+    ResetLockup,
     // Fee must always be last for ordering
     Fee,
 }
@@ -97,12 +100,13 @@ pub enum OperationType {
 impl OperationType {
     const CREATE_ACCOUNT: &'static str = "create_account";
     const DEPOSIT: &'static str = "deposit";
-    const WITHDRAW: &'static str = "withdraw";
     const FEE: &'static str = "fee";
-    const STAKING_REWARD: &'static str = "staking_reward";
+    const INITIALIZE_STAKE_POOL: &'static str = "initialize_stake_pool";
+    const RESET_LOCKUP: &'static str = "reset_lockup";
     const SET_OPERATOR: &'static str = "set_operator";
     const SET_VOTER: &'static str = "set_voter";
-    const INITIALIZE_STAKE_POOL: &'static str = "initialize_stake_pool";
+    const STAKING_REWARD: &'static str = "staking_reward";
+    const WITHDRAW: &'static str = "withdraw";
 
     pub fn all() -> Vec<OperationType> {
         use OperationType::*;
@@ -115,6 +119,7 @@ impl OperationType {
             SetVoter,
             StakingReward,
             InitializeStakePool,
+            ResetLockup,
         ]
     }
 }
@@ -132,6 +137,7 @@ impl FromStr for OperationType {
             Self::SET_OPERATOR => Ok(OperationType::SetOperator),
             Self::SET_VOTER => Ok(OperationType::SetVoter),
             Self::INITIALIZE_STAKE_POOL => Ok(OperationType::InitializeStakePool),
+            Self::RESET_LOCKUP => Ok(OperationType::ResetLockup),
             _ => Err(ApiError::DeserializationFailed(Some(format!(
                 "Invalid OperationType: {}",
                 s
@@ -151,6 +157,7 @@ impl Display for OperationType {
             SetOperator => Self::SET_OPERATOR,
             SetVoter => Self::SET_VOTER,
             InitializeStakePool => Self::INITIALIZE_STAKE_POOL,
+            ResetLockup => Self::RESET_LOCKUP,
             Fee => Self::FEE,
         })
     }
@@ -166,8 +173,8 @@ pub enum OperationStatusType {
 }
 
 impl OperationStatusType {
-    const SUCCESS: &'static str = "success";
     const FAILURE: &'static str = "failure";
+    const SUCCESS: &'static str = "success";
 
     pub fn all() -> Vec<OperationStatusType> {
         vec![OperationStatusType::Success, OperationStatusType::Failure]

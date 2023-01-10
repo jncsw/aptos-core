@@ -3,12 +3,12 @@
 
 use crate::generate_traffic;
 use anyhow::bail;
-use aptos_logger::info;
-use aptos_sdk::move_types::account_address::AccountAddress;
-use forge::{
+use aptos_forge::{
     get_highest_synced_epoch, get_highest_synced_version, NetworkContext, NetworkTest, Result,
     SwarmExt, Test,
 };
+use aptos_logger::info;
+use aptos_sdk::move_types::account_address::AccountAddress;
 use std::time::Instant;
 use tokio::{runtime::Runtime, time::Duration};
 
@@ -94,7 +94,7 @@ impl NetworkTest for StateSyncFullnodeFastSyncPerformance {
                     "No instant vectors found for prom query {}",
                     prom_query
                 ));
-            }
+            },
         };
         info!(
             "Number of reported state values found on-chain is: {}",
@@ -187,15 +187,10 @@ fn get_fullnodes_and_check_setup(
     }
 
     // Log the test setup
-    let all_validators = ctx
-        .swarm()
-        .validators()
-        .map(|v| v.peer_id())
-        .collect::<Vec<_>>();
     info!(
         "Running state sync test {:?} with {:?} validators and {:?} fullnodes.",
         test_name,
-        all_validators.len(),
+        ctx.swarm().validators().count(),
         all_fullnodes.len()
     );
 
@@ -215,12 +210,7 @@ fn emit_traffic_and_ensure_bounded_sync(
         "Generating the initial traffic for {:?} seconds.",
         emit_txn_duration.as_secs()
     );
-    let _txn_stat = generate_traffic(
-        ctx,
-        nodes_to_send_traffic,
-        emit_txn_duration,
-        aptos_global_constants::GAS_UNIT_PRICE,
-    )?;
+    let _txn_stat = generate_traffic(ctx, nodes_to_send_traffic, emit_txn_duration)?;
 
     // Wait for all nodes to synchronize. We time bound this to ensure
     // nodes don't fall too far behind.
@@ -355,7 +345,7 @@ fn ensure_state_sync_transaction_throughput(
             "The time taken to state sync was 0 seconds! Something has gone wrong!"
         ));
     }
-    let state_sync_throughput = highest_synced_version as u64 / seconds_to_sync;
+    let state_sync_throughput = highest_synced_version / seconds_to_sync;
 
     // Report the state sync results
     let throughput_message = format!("State sync throughput : {} txn/sec", state_sync_throughput);

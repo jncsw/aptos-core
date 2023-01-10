@@ -95,6 +95,11 @@ variable "utility_instance_enable_taint" {
   default     = false
 }
 
+variable "utility_instance_disk_size_gb" {
+  description = "Disk size for utility instances"
+  default     = 20
+}
+
 variable "validator_instance_type" {
   description = "Instance type used for validator and fullnodes"
   default     = "n2-standard-32"
@@ -108,6 +113,11 @@ variable "validator_instance_num" {
 variable "validator_instance_enable_taint" {
   description = "Whether to taint instances in the validator nodegroup"
   default     = false
+}
+
+variable "validator_instance_disk_size_gb" {
+  description = "Disk size for validator instances"
+  default     = 20
 }
 
 variable "enable_logger" {
@@ -141,4 +151,9 @@ variable "node_exporter_helm_values" {
   description = "Map of values to pass to node exporter Helm"
   type        = any
   default     = {}
+}
+
+variable "manage_via_tf" {
+  description = "Whether to manage the aptos-node k8s workload via Terraform"
+  default     = true
 }

@@ -2,22 +2,36 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    commit_notifier::QuorumStoreCommitNotifier,
     counters,
     epoch_manager::EpochManager,
     experimental::buffer_manager::OrderedBlocks,
     network::NetworkTask,
-    network_interface::{ConsensusNetworkEvents, ConsensusNetworkSender},
+    network_interface::{ConsensusNetworkClient, DIRECT_SEND, RPC},
     network_tests::{NetworkPlayground, TwinId},
+    payload_manager::PayloadManager,
     test_utils::{MockStateComputer, MockStorage},
     util::time_service::ClockTimeService,
 };
+use aptos_channels::{self, aptos_channel, message_queues::QueueStyle};
 use aptos_config::{
     config::{NodeConfig, WaypointConfig},
     generator::{self, ValidatorSwarm},
     network_id::NetworkId,
 };
+use aptos_consensus_types::common::{Author, Round};
+use aptos_event_notifications::{ReconfigNotification, ReconfigNotificationListener};
 use aptos_mempool::mocks::MockSharedMempool;
+use aptos_network::{
+    application::interface::NetworkClient,
+    peer_manager::{conn_notifs_channel, ConnectionRequestSender, PeerManagerRequestSender},
+    protocols::{
+        network,
+        network::{NetworkEvents, NewNetworkEvents, NewNetworkSender},
+        wire::handshake::v1::ProtocolIdSet,
+    },
+    transport::ConnectionMetadata,
+    ProtocolId,
+};
 use aptos_types::{
     ledger_info::LedgerInfoWithSignatures,
     on_chain_config::{
@@ -29,22 +43,10 @@ use aptos_types::{
     validator_info::ValidatorInfo,
     waypoint::Waypoint,
 };
-use channel::{self, aptos_channel, message_queues::QueueStyle};
-use consensus_types::common::{Author, Round};
-use event_notifications::{ReconfigNotification, ReconfigNotificationListener};
-use futures::channel::mpsc;
-use futures::StreamExt;
-use network::{
-    peer_manager::{conn_notifs_channel, ConnectionRequestSender, PeerManagerRequestSender},
-    protocols::{
-        network::{NewNetworkEvents, NewNetworkSender},
-        wire::handshake::v1::ProtocolIdSet,
-    },
-    transport::ConnectionMetadata,
-    ProtocolId,
-};
+use futures::{channel::mpsc, StreamExt};
+use maplit::hashmap;
 use std::{collections::HashMap, iter::FromIterator, sync::Arc};
-use tokio::runtime::{Builder, Runtime};
+use tokio::runtime::Runtime;
 
 /// Auxiliary struct that is preparing SMR for the test
 pub struct SMRNode {
@@ -71,14 +73,20 @@ impl SMRNode {
         let (network_reqs_tx, network_reqs_rx) = aptos_channel::new(QueueStyle::FIFO, 8, None);
         let (connection_reqs_tx, _) = aptos_channel::new(QueueStyle::FIFO, 8, None);
         let (consensus_tx, consensus_rx) = aptos_channel::new(QueueStyle::FIFO, 8, None);
-        let (_conn_mgr_reqs_tx, conn_mgr_reqs_rx) = channel::new_test(8);
+        let (_conn_mgr_reqs_tx, conn_mgr_reqs_rx) = aptos_channels::new_test(8);
         let (_, conn_notifs_channel) = conn_notifs_channel::new();
-        let mut network_sender = ConsensusNetworkSender::new(
+        let network_sender = network::NetworkSender::new(
             PeerManagerRequestSender::new(network_reqs_tx),
             ConnectionRequestSender::new(connection_reqs_tx),
         );
-        network_sender.initialize(playground.peer_protocols());
-        let network_events = ConsensusNetworkEvents::new(consensus_rx, conn_notifs_channel);
+        let network_client = NetworkClient::new(
+            DIRECT_SEND.into(),
+            RPC.into(),
+            hashmap! {NetworkId::Validator => network_sender},
+            playground.peer_protocols(),
+        );
+        let consensus_network_client = ConsensusNetworkClient::new(network_client);
+        let network_events = NetworkEvents::new(consensus_rx, conn_notifs_channel);
 
         playground.add_node(twin_id, consensus_tx, network_reqs_rx, conn_mgr_reqs_rx);
 
@@ -95,7 +103,7 @@ impl SMRNode {
         let reconfig_listener = ReconfigNotificationListener {
             notification_receiver: reconfig_events,
         };
-        let commit_notifier = Arc::new(QuorumStoreCommitNotifier::new(1_000));
+        let _commit_notifier = Arc::from(PayloadManager::DirectMempool);
         let mut configs = HashMap::new();
         configs.insert(
             ValidatorSet::CONFIG_ID,
@@ -109,43 +117,32 @@ impl SMRNode {
         let payload = OnChainConfigPayload::new(1, Arc::new(configs));
 
         reconfig_sender
-            .push(
-                (),
-                ReconfigNotification {
-                    version: 1,
-                    on_chain_configs: payload,
-                },
-            )
+            .push((), ReconfigNotification {
+                version: 1,
+                on_chain_configs: payload,
+            })
             .unwrap();
 
-        let runtime = Builder::new_multi_thread()
-            .thread_name(format!(
-                "{}-node-{}",
-                twin_id.id,
-                std::thread::current().name().unwrap_or("")
-            ))
-            .disable_lifo_slot()
-            .enable_all()
-            .build()
-            .unwrap();
+        let thread_name = format!("twin-{}", twin_id.id,);
+        let runtime = aptos_runtimes::spawn_named_runtime(thread_name, None);
 
         let time_service = Arc::new(ClockTimeService::new(runtime.handle().clone()));
 
         let (timeout_sender, timeout_receiver) =
-            channel::new(1_024, &counters::PENDING_ROUND_TIMEOUTS);
-        let (self_sender, self_receiver) = channel::new(1_024, &counters::PENDING_SELF_MESSAGES);
+            aptos_channels::new(1_024, &counters::PENDING_ROUND_TIMEOUTS);
+        let (self_sender, self_receiver) =
+            aptos_channels::new(1_024, &counters::PENDING_SELF_MESSAGES);
 
         let epoch_mgr = EpochManager::new(
             &config,
             time_service,
             self_sender,
-            network_sender,
+            consensus_network_client,
             timeout_sender,
             quorum_store_to_mempool_sender,
             state_computer.clone(),
             storage.clone(),
             reconfig_listener,
-            commit_notifier,
         );
         let (network_task, network_receiver) = NetworkTask::new(network_events, self_receiver);
 
@@ -227,7 +224,7 @@ impl SMRNode {
                     })
                 }
                 RoundProposer(round_proposers)
-            }
+            },
             _ => proposer_type,
         };
 

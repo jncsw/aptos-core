@@ -48,6 +48,7 @@ Aptos provides a rate-limited GraphQL API for public use. See below a few exampl
 
 - **Mainnet:** https://cloud.hasura.io/public/graphiql?endpoint=https://indexer.mainnet.aptoslabs.com/v1/graphql
 - **Testnet:** https://cloud.hasura.io/public/graphiql?endpoint=https://indexer-testnet.staging.gcp.aptosdev.com/v1/graphql
+- **Devnet:** https://cloud.hasura.io/public/graphiql?endpoint=https://indexer-devnet.staging.gcp.aptosdev.com/v1/graphql
 
 ### Format of the address
 
@@ -55,7 +56,7 @@ Make sure that the address (either owner address or any Aptos blockchain account
 
 ### Running example queries
 
-- Click on [Mainnet GraphQL server](https://cloud.hasura.io/public/graphiql?endpoint=https://indexer.mainnet.aptoslabs.com/v1/graphql) or [Testnet GraphQL server](https://cloud.hasura.io/public/graphiql?endpoint=https://indexer-testnet.staging.gcp.aptosdev.com/v1/graphql).
+- Click on [Mainnet GraphQL server](https://cloud.hasura.io/public/graphiql?endpoint=https://indexer.mainnet.aptoslabs.com/v1/graphql) or [Testnet GraphQL server](https://cloud.hasura.io/public/graphiql?endpoint=https://indexer-testnet.staging.gcp.aptosdev.com/v1/graphql) or [Devnet GraphQL server](https://cloud.hasura.io/public/graphiql?endpoint=https://indexer-devnet.staging.gcp.aptosdev.com/v1/graphql).
 - On the server page, paste the **Query** code from an example into the main query section, and the **Query variables** code from the same example into the QUERY VARIABLES section (below the main query section).
 
 
@@ -249,7 +250,7 @@ query UserTransactions($limit: Int) {
 
 The following rate limit applies for this Aptos-provided indexing service:
 
-- For a web application that calls this Aptos-provided indexer API directly from the client (for example, wallet or explorer), the rate limit is currently 400 requests per 5 minutes. **Note that this limit can change with or without prior notice.** 
+- For a web application that calls this Aptos-provided indexer API directly from the client (for example, wallet or explorer), the rate limit is currently 1000 requests per 5 minutes by IP address. **Note that this limit can change with or without prior notice.** 
 
 If you are running a backend (server-side) application and want to call the indexer programmatically then you should run an indexer-enabled fullnode. 
 

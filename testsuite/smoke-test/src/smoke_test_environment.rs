@@ -2,17 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use aptos::test::CliTestFramework;
-use aptos_config::config::NodeConfig;
-use aptos_config::{keys::ConfigKey, utils::get_available_port};
+use aptos_config::{config::NodeConfig, keys::ConfigKey, utils::get_available_port};
 use aptos_crypto::ed25519::Ed25519PrivateKey;
 use aptos_faucet::FaucetArgs;
+use aptos_forge::{ActiveNodesGuard, Factory, LocalFactory, LocalSwarm, Node};
+use aptos_framework::ReleaseBundle;
 use aptos_genesis::builder::{InitConfigFn, InitGenesisConfigFn};
 use aptos_infallible::Mutex;
 use aptos_logger::prelude::*;
 use aptos_types::{account_config::aptos_test_root_address, chain_id::ChainId};
-use forge::{ActiveNodesGuard, Node};
-use forge::{Factory, LocalFactory, LocalSwarm};
-use framework::ReleaseBundle;
 use once_cell::sync::Lazy;
 use rand::rngs::OsRng;
 use std::{num::NonZeroUsize, path::PathBuf, sync::Arc};
@@ -49,12 +47,12 @@ impl SwarmBuilder {
     }
 
     pub fn with_aptos(mut self) -> Self {
-        self.genesis_framework = Some(cached_packages::head_release_bundle().clone());
+        self.genesis_framework = Some(aptos_cached_packages::head_release_bundle().clone());
         self
     }
 
     pub fn with_aptos_testnet(mut self) -> Self {
-        self.genesis_framework = Some(framework::testnet_release_bundle().clone());
+        self.genesis_framework = Some(aptos_framework::testnet_release_bundle().clone());
         self
     }
 
@@ -127,7 +125,7 @@ impl SwarmBuilder {
             match self.build_inner().await {
                 Ok(swarm) => {
                     return swarm;
-                }
+                },
                 Err(err) => warn!("Attempt {} / {} failed with: {}", attempt, num_retries, err),
             }
             attempt += 1;

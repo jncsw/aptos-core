@@ -9,16 +9,7 @@ use crate::{
     persistent_safety_storage::PersistentSafetyStorage,
     t_safety_rules::TSafetyRules,
 };
-use aptos_crypto::{bls12381, hash::CryptoHash};
-use aptos_logger::prelude::*;
-use aptos_types::{
-    epoch_change::EpochChangeProof,
-    epoch_state::EpochState,
-    ledger_info::{LedgerInfo, LedgerInfoWithSignatures},
-    validator_signer::ValidatorSigner,
-    waypoint::Waypoint,
-};
-use consensus_types::{
+use aptos_consensus_types::{
     block_data::BlockData,
     common::{Author, Round},
     quorum_cert::QuorumCert,
@@ -27,6 +18,15 @@ use consensus_types::{
     vote::Vote,
     vote_data::VoteData,
     vote_proposal::VoteProposal,
+};
+use aptos_crypto::{bls12381, hash::CryptoHash};
+use aptos_logger::prelude::*;
+use aptos_types::{
+    epoch_change::EpochChangeProof,
+    epoch_state::EpochState,
+    ledger_info::{LedgerInfo, LedgerInfoWithSignatures},
+    validator_signer::ValidatorSigner,
+    waypoint::Waypoint,
 };
 use serde::Serialize;
 use std::cmp::Ordering;
@@ -240,7 +240,7 @@ impl SafetyRules {
                     current_epoch,
                     epoch_state.epoch,
                 ));
-            }
+            },
             Ordering::Less => {
                 // start new epoch
                 self.persistent_storage.set_safety_data(SafetyData::new(
@@ -253,7 +253,7 @@ impl SafetyRules {
 
                 info!(SafetyLogSchema::new(LogEntry::Epoch, LogEvent::Update)
                     .epoch(epoch_state.epoch));
-            }
+            },
             Ordering::Equal => (),
         };
         self.epoch_state = Some(epoch_state.clone());
@@ -280,14 +280,14 @@ impl SafetyRules {
                             self.validator_signer =
                                 Some(ValidatorSigner::new(author, consensus_key));
                             Ok(())
-                        }
+                        },
                         Err(Error::SecureStorageMissingDataError(error)) => {
                             Err(Error::ValidatorKeyNotFound(error))
-                        }
+                        },
                         Err(error) => Err(error),
                     }
                 }
-            }
+            },
         };
         initialize_result.map_err(|error| {
             info!(

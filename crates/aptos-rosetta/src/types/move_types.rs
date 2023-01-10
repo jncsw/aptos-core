@@ -5,8 +5,7 @@
 
 use crate::AccountAddress;
 use aptos_types::event::EventHandle;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub const ACCOUNT_MODULE: &str = "account";
@@ -29,7 +28,8 @@ pub const VESTING_RESOURCE: &str = "Vesting";
 
 pub const CREATE_ACCOUNT_FUNCTION: &str = "create_account";
 pub const TRANSFER_FUNCTION: &str = "transfer";
-pub const CREATE_STAKING_CONTRACT: &str = "create_staking_contract";
+pub const RESET_LOCKUP_FUNCTION: &str = "reset_lockup";
+pub const CREATE_STAKING_CONTRACT_FUNCTION: &str = "create_staking_contract";
 pub const SWITCH_OPERATOR_WITH_SAME_COMMISSION_FUNCTION: &str =
     "switch_operator_with_same_commission";
 pub const UPDATE_VOTER_FUNCTION: &str = "update_voter";

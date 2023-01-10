@@ -7,7 +7,7 @@ resource "google_container_cluster" "aptos" {
   remove_default_node_pool = true
   initial_node_count       = 1
   logging_service          = "logging.googleapis.com/kubernetes"
-  monitoring_service       = "none"
+  monitoring_service       = "monitoring.googleapis.com/kubernetes"
 
   release_channel {
     channel = "REGULAR"
@@ -68,7 +68,7 @@ resource "google_container_node_pool" "utilities" {
   node_config {
     machine_type    = var.utility_instance_type
     image_type      = "COS_CONTAINERD"
-    disk_size_gb    = 20
+    disk_size_gb    = var.utility_instance_disk_size_gb
     service_account = google_service_account.gke.email
     tags            = ["utilities"]
     oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
@@ -103,7 +103,7 @@ resource "google_container_node_pool" "validators" {
   node_config {
     machine_type    = var.validator_instance_type
     image_type      = "COS_CONTAINERD"
-    disk_size_gb    = 20
+    disk_size_gb    = var.validator_instance_disk_size_gb
     service_account = google_service_account.gke.email
     tags            = ["validators"]
     oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]

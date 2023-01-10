@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use aptos_logger::{prelude::*, Level, Logger};
-use aptos_push_metrics::MetricsPusher;
-use backup_cli::{
+use aptos_backup_cli::{
     backup_types::{
         epoch_ending::restore::{EpochEndingRestoreController, EpochEndingRestoreOpt},
         state_snapshot::restore::{StateSnapshotRestoreController, StateSnapshotRestoreOpt},
@@ -14,6 +12,8 @@ use backup_cli::{
     storage::StorageOpt,
     utils::{GlobalRestoreOpt, GlobalRestoreOptions},
 };
+use aptos_logger::{prelude::*, Level, Logger};
+use aptos_push_metrics::MetricsPusher;
 use clap::Parser;
 use std::convert::TryInto;
 
@@ -75,7 +75,7 @@ async fn main_impl() -> Result<()> {
             EpochEndingRestoreController::new(opt, global_opt, storage.init_storage().await?)
                 .run(None)
                 .await?;
-        }
+        },
         RestoreType::StateSnapshot { opt, storage } => {
             StateSnapshotRestoreController::new(
                 opt,
@@ -85,22 +85,23 @@ async fn main_impl() -> Result<()> {
             )
             .run()
             .await?;
-        }
+        },
         RestoreType::Transaction { opt, storage } => {
             TransactionRestoreController::new(
                 opt,
                 global_opt,
                 storage.init_storage().await?,
                 None, /* epoch_history */
+                vec![],
             )
             .run()
             .await?;
-        }
+        },
         RestoreType::Auto { opt, storage } => {
             RestoreCoordinator::new(opt, global_opt, storage.init_storage().await?)
                 .run()
                 .await?;
-        }
+        },
     }
 
     Ok(())

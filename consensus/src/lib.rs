@@ -15,7 +15,6 @@
 extern crate core;
 
 mod block_storage;
-mod commit_notifier;
 mod consensusdb;
 mod epoch_manager;
 mod error;
@@ -26,7 +25,7 @@ mod metrics_safety_rules;
 mod network;
 #[cfg(test)]
 mod network_tests;
-mod payload_manager;
+mod payload_client;
 mod pending_votes;
 mod persistent_liveness_storage;
 mod quorum_store;
@@ -47,10 +46,11 @@ pub mod consensus_provider;
 pub mod counters;
 /// AptosNet interface.
 pub mod network_interface;
+mod payload_manager;
 
+pub use consensusdb::create_checkpoint;
 /// Required by the smoke tests
 pub use consensusdb::CONSENSUS_DB_NAME;
-
 #[cfg(feature = "fuzzing")]
 pub use round_manager::round_manager_fuzzing;
 
@@ -59,7 +59,7 @@ pub use round_manager::round_manager_fuzzing;
 /// It assumes a OpMetrics defined as OP_COUNTERS in crate::counters;
 #[macro_export]
 macro_rules! monitor {
-    ( $name:literal, $fn:expr ) => {{
+    ($name:literal, $fn:expr) => {{
         use $crate::counters::OP_COUNTERS;
         let _timer = OP_COUNTERS.timer($name);
         let gauge = OP_COUNTERS.gauge(concat!($name, "_running"));

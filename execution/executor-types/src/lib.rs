@@ -3,15 +3,12 @@
 
 #![forbid(unsafe_code)]
 
-use std::{cmp::max, collections::HashMap, sync::Arc};
-
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
-
 use aptos_crypto::{
     hash::{EventAccumulatorHasher, TransactionAccumulatorHasher, ACCUMULATOR_PLACEHOLDER_HASH},
     HashValue,
 };
+use aptos_scratchpad::{ProofRead, SparseMerkleTree};
 use aptos_types::{
     contract_event::ContractEvent,
     epoch_state::EpochState,
@@ -27,7 +24,12 @@ use aptos_types::{
 pub use error::Error;
 pub use executed_chunk::ExecutedChunk;
 pub use parsed_transaction_output::ParsedTransactionOutput;
-use scratchpad::{ProofRead, SparseMerkleTree};
+use serde::{Deserialize, Serialize};
+use std::{
+    cmp::max,
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
 
 mod error;
 mod executed_chunk;
@@ -122,6 +124,9 @@ pub trait TransactionReplayer: Send {
         &self,
         transactions: Vec<Transaction>,
         transaction_infos: Vec<TransactionInfo>,
+        writesets: Vec<WriteSet>,
+        events: Vec<Vec<ContractEvent>>,
+        txns_to_skip: Arc<BTreeSet<Version>>,
     ) -> Result<()>;
 
     fn commit(&self) -> Result<Arc<ExecutedChunk>>;

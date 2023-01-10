@@ -2,17 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{counters, logging::LogEntry, ConsensusState, Error, SafetyRules, TSafetyRules};
+use aptos_consensus_types::{
+    block_data::BlockData,
+    timeout_2chain::{TwoChainTimeout, TwoChainTimeoutCertificate},
+    vote::Vote,
+    vote_proposal::VoteProposal,
+};
 use aptos_crypto::bls12381;
 use aptos_infallible::RwLock;
 use aptos_types::{
     epoch_change::EpochChangeProof,
     ledger_info::{LedgerInfo, LedgerInfoWithSignatures},
-};
-use consensus_types::{
-    block_data::BlockData,
-    timeout_2chain::{TwoChainTimeout, TwoChainTimeoutCertificate},
-    vote::Vote,
-    vote_proposal::VoteProposal,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -45,11 +45,11 @@ impl SerializerService {
         let output = match input {
             SafetyRulesInput::ConsensusState => {
                 serde_json::to_vec(&self.internal.consensus_state())
-            }
+            },
             SafetyRulesInput::Initialize(li) => serde_json::to_vec(&self.internal.initialize(&li)),
             SafetyRulesInput::SignProposal(block_data) => {
                 serde_json::to_vec(&self.internal.sign_proposal(&block_data))
-            }
+            },
             SafetyRulesInput::SignTimeoutWithQC(timeout, maybe_tc) => serde_json::to_vec(
                 &self
                     .internal
@@ -62,7 +62,7 @@ impl SerializerService {
                         maybe_tc.as_ref().as_ref(),
                     ),
                 )
-            }
+            },
             SafetyRulesInput::SignCommitVote(ledger_info, new_ledger_info) => serde_json::to_vec(
                 &self
                     .internal

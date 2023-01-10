@@ -1,6 +1,18 @@
 // Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::{
+    smoke_test_environment::SwarmBuilder,
+    test_utils::{create_and_fund_account, transfer_coins_non_blocking},
+};
+use aptos_forge::{
+    test_utils::consensus_utils::{
+        no_failure_injection, test_consensus_fault_tolerance, FailPointFailureInjection, NodeState,
+    },
+    LocalSwarm, Swarm, SwarmExt,
+};
+use aptos_logger::info;
+use rand::{self, rngs::SmallRng, Rng, SeedableRng};
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -8,19 +20,6 @@ use std::{
     },
     time::{Duration, Instant},
 };
-
-use crate::{
-    smoke_test_environment::SwarmBuilder,
-    test_utils::{create_and_fund_account, transfer_coins_non_blocking},
-};
-use aptos_logger::info;
-use forge::{
-    test_utils::consensus_utils::{
-        no_failure_injection, test_consensus_fault_tolerance, FailPointFailureInjection, NodeState,
-    },
-    LocalSwarm, Swarm, SwarmExt,
-};
-use rand::{self, rngs::SmallRng, Rng, SeedableRng};
 
 pub async fn create_swarm(num_nodes: usize, max_block_txns: u64) -> LocalSwarm {
     let swarm = SwarmBuilder::new_local(num_nodes)
@@ -32,6 +31,10 @@ pub async fn create_swarm(num_nodes: usize, max_block_txns: u64) -> LocalSwarm {
             config.consensus.round_timeout_backoff_exponent_base = 1.0;
             // empty block generated automatically every ~half a second
             config.consensus.quorum_store_poll_count = 15;
+            config
+                .state_sync
+                .state_sync_driver
+                .enable_auto_bootstrapping = true;
             config
                 .state_sync
                 .state_sync_driver

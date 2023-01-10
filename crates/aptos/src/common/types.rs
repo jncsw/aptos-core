@@ -1,51 +1,52 @@
 // Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::common::init::Network;
-use crate::common::utils::prompt_yes_with_override;
 use crate::{
-    common::utils::{
-        chain_id, check_if_file_exists, create_dir_if_not_exist, dir_default_to_current,
-        get_auth_key, get_sequence_number, read_from_file, start_logger, to_common_result,
-        to_common_success_result, write_to_file, write_to_file_with_opts, write_to_user_only_file,
+    common::{
+        init::Network,
+        utils::{
+            check_if_file_exists, create_dir_if_not_exist, dir_default_to_current,
+            get_account_with_state, get_auth_key, get_sequence_number, prompt_yes_with_override,
+            read_from_file, start_logger, to_common_result, to_common_success_result,
+            write_to_file, write_to_file_with_opts, write_to_user_only_file,
+        },
     },
     config::GlobalConfig,
     genesis::git::from_yaml,
 };
-use aptos_crypto::ed25519::Ed25519Signature;
 use aptos_crypto::{
-    ed25519::{Ed25519PrivateKey, Ed25519PublicKey},
+    ed25519::{Ed25519PrivateKey, Ed25519PublicKey, Ed25519Signature},
     x25519, PrivateKey, ValidCryptoMaterial, ValidCryptoMaterialStringExt,
 };
 use aptos_global_constants::adjust_gas_headroom;
 use aptos_keygen::KeyGen;
-use aptos_rest_client::aptos_api_types::{ExplainVMStatus, HashValue, UserTransaction};
-use aptos_rest_client::error::RestError;
-use aptos_rest_client::{Client, Transaction};
+use aptos_rest_client::{aptos_api_types::HashValue, error::RestError, Client, Transaction};
 use aptos_sdk::{transaction_builder::TransactionFactory, types::LocalAccount};
-use aptos_types::transaction::{
-    authenticator::AuthenticationKey, SignedTransaction, TransactionPayload,
+use aptos_types::{
+    chain_id::ChainId,
+    transaction::{authenticator::AuthenticationKey, SignedTransaction, TransactionPayload},
 };
 use async_trait::async_trait;
 use clap::{ArgEnum, Parser};
 use hex::FromHexError;
 use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
-use std::time::Duration;
 use std::{
     collections::BTreeMap,
+    convert::TryFrom,
     fmt::{Debug, Display, Formatter},
     fs::OpenOptions,
     path::{Path, PathBuf},
     str::FromStr,
-    time::Instant,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use thiserror::Error;
 
-const MAX_POSSIBLE_GAS_UNITS: u64 = 1_000_000;
+const US_IN_SECS: u64 = 1_000_000;
+const ACCEPTED_CLOCK_SKEW_US: u64 = 5 * US_IN_SECS;
+pub const DEFAULT_EXPIRATION_SECS: u64 = 30;
 pub const DEFAULT_PROFILE: &str = "default";
 
 /// A common result to be returned to users
@@ -476,7 +477,7 @@ impl EncodingType {
                 let hex_string = String::from_utf8(data)?;
                 Key::from_encoded_string(hex_string.trim())
                     .map_err(|err| CliError::UnableToParse(name, err.to_string()))
-            }
+            },
             EncodingType::Base64 => {
                 let string = String::from_utf8(data)?;
                 let bytes = base64::decode(string.trim())
@@ -484,7 +485,7 @@ impl EncodingType {
                 Key::try_from(bytes.as_slice()).map_err(|err| {
                     CliError::UnableToParse(name, format!("Failed to parse key {:?}", err))
                 })
-            }
+            },
         }
     }
 }
@@ -566,7 +567,7 @@ impl FromStr for EncodingType {
 }
 
 /// An insertable option for use with prompts.
-#[derive(Clone, Copy, Debug, Default, Parser)]
+#[derive(Clone, Copy, Debug, Default, Parser, PartialEq, Eq)]
 pub struct PromptOptions {
     /// Assume yes for all yes/no prompts
     #[clap(long, group = "prompt_options")]
@@ -749,7 +750,7 @@ impl PrivateKeyInputOptions {
                 (None, None) => {
                     let address = account_address_from_public_key(&key.public_key());
                     Ok((key, address))
-                }
+                },
             }
         } else {
             Err(CliError::CommandArgumentError(
@@ -857,7 +858,7 @@ pub struct RestOptions {
     pub(crate) url: Option<reqwest::Url>,
 
     /// Connection timeout in seconds, used for the REST endpoint of the fullnode
-    #[clap(long, default_value = "30", alias = "connection-timeout-s")]
+    #[clap(long, default_value_t = DEFAULT_EXPIRATION_SECS, alias = "connection-timeout-s")]
     pub connection_timeout_secs: u64,
 }
 
@@ -865,7 +866,7 @@ impl RestOptions {
     pub fn new(url: Option<reqwest::Url>, connection_timeout_secs: Option<u64>) -> Self {
         RestOptions {
             url,
-            connection_timeout_secs: connection_timeout_secs.unwrap_or(30),
+            connection_timeout_secs: connection_timeout_secs.unwrap_or(DEFAULT_EXPIRATION_SECS),
         }
     }
 
@@ -912,6 +913,18 @@ pub struct MovePackageDir {
     /// Note: This will fail if there are duplicates in the Move.toml file remove those first.
     #[clap(long, parse(try_from_str = crate::common::utils::parse_map), default_value = "")]
     pub(crate) named_addresses: BTreeMap<String, AccountAddressWrapper>,
+
+    /// Skip pulling the latest git dependencies
+    ///
+    /// If you don't have a network connection, the compiler may fail due
+    /// to no ability to pull git dependencies.  This will allow overriding
+    /// this for local development.
+    #[clap(long)]
+    pub(crate) skip_fetch_latest_git_deps: bool,
+
+    /// Specify the version of the bytecode the compiler is going to emit.
+    #[clap(long)]
+    pub bytecode_version: Option<u32>,
 }
 
 impl MovePackageDir {
@@ -920,6 +933,8 @@ impl MovePackageDir {
             package_dir: Some(package_dir),
             output_dir: None,
             named_addresses: Default::default(),
+            skip_fetch_latest_git_deps: true,
+            bytecode_version: None,
         }
     }
 
@@ -934,6 +949,10 @@ impl MovePackageDir {
             .into_iter()
             .map(|(key, value)| (key, value.account_address))
             .collect()
+    }
+
+    pub fn bytecode_version_or_detault(&self) -> u32 {
+        self.bytecode_version.unwrap_or(5)
     }
 
     pub fn add_named_address(&mut self, key: String, value: String) {
@@ -1199,7 +1218,7 @@ impl FaucetOptions {
 }
 
 /// Gas price options for manipulating how to prioritize transactions
-#[derive(Debug, Default, Eq, Parser, PartialEq)]
+#[derive(Debug, Eq, Parser, PartialEq)]
 pub struct GasOptions {
     /// Gas multiplier per unit of gas
     ///
@@ -1225,6 +1244,21 @@ pub struct GasOptions {
     /// Without a value, it will determine the price based on simulating the current transaction
     #[clap(long)]
     pub max_gas: Option<u64>,
+    /// Number of seconds to expire the transaction
+    ///
+    /// This is the number of seconds from the current local computer time.
+    #[clap(long, default_value_t = DEFAULT_EXPIRATION_SECS)]
+    pub expiration_secs: u64,
+}
+
+impl Default for GasOptions {
+    fn default() -> Self {
+        GasOptions {
+            gas_unit_price: None,
+            max_gas: None,
+            expiration_secs: DEFAULT_EXPIRATION_SECS,
+        }
+    }
 }
 
 /// Common options for interacting with an account for a validator
@@ -1294,9 +1328,6 @@ impl TransactionOptions {
         let client = self.rest_client()?;
         let (sender_key, sender_address) = self.get_key_and_address()?;
 
-        // Get sequence number for account
-        let sequence_number = self.sequence_number(sender_address).await?;
-
         // Ask to confirm price if the gas unit price is estimated above the lowest value when
         // it is automatically estimated
         let ask_to_confirm_price;
@@ -1310,6 +1341,27 @@ impl TransactionOptions {
             gas_unit_price
         };
 
+        // Get sequence number for account
+        let (account, state) = get_account_with_state(&client, sender_address).await?;
+        let sequence_number = account.sequence_number;
+
+        // Retrieve local time, and ensure it's within an expected skew of the blockchain
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|err| CliError::UnexpectedError(err.to_string()))?
+            .as_secs();
+        let now_usecs = now * US_IN_SECS;
+
+        // Warn local user that clock is skewed behind the blockchain.
+        // There will always be a little lag from real time to blockchain time
+        if now_usecs < state.timestamp_usecs - ACCEPTED_CLOCK_SKEW_US {
+            eprintln!("Local clock is is skewed from blockchain clock.  Clock is more than {} seconds behind the blockchain {}", ACCEPTED_CLOCK_SKEW_US, state.timestamp_usecs / US_IN_SECS );
+        }
+        let expiration_time_secs = now + self.gas_options.expiration_secs;
+
+        let chain_id = ChainId::new(state.chain_id);
+        // TODO: Check auth key against current private key and provide a better message
+
         let max_gas = if let Some(max_gas) = self.gas_options.max_gas {
             // If the gas unit price was estimated ask, but otherwise you've chosen hwo much you want to spend
             if ask_to_confirm_price {
@@ -1318,13 +1370,14 @@ impl TransactionOptions {
             }
             max_gas
         } else {
-            let transaction_factory = TransactionFactory::new(chain_id(&client).await?)
-                .with_gas_unit_price(gas_unit_price);
+            let transaction_factory =
+                TransactionFactory::new(chain_id).with_gas_unit_price(gas_unit_price);
 
             let unsigned_transaction = transaction_factory
                 .payload(payload.clone())
                 .sender(sender_address)
                 .sequence_number(sequence_number)
+                .expiration_timestamp_secs(expiration_time_secs)
                 .build();
 
             let signed_transaction = SignedTransaction::new(
@@ -1332,33 +1385,28 @@ impl TransactionOptions {
                 sender_key.public_key(),
                 Ed25519Signature::try_from([0u8; 64].as_ref()).unwrap(),
             );
-            // TODO: Cleanup to use the gas price estimation here
-            let simulated_txn = client
-                .simulate_bcs_with_gas_estimation(&signed_transaction, true, false)
+
+            let txns = client
+                .simulate_with_gas_estimation(&signed_transaction, true, false)
                 .await?
                 .into_inner();
+            let simulated_txn = txns.first().unwrap();
 
             // Check if the transaction will pass, if it doesn't then fail
-            // TODO: Add move resolver so we can explain the VM status with a proper error map
-            let status = simulated_txn.info.status();
-            if !status.is_success() {
-                let status = client.explain_vm_status(status);
-                return Err(CliError::SimulationError(status));
+            if !simulated_txn.info.success {
+                return Err(CliError::SimulationError(
+                    simulated_txn.info.vm_status.clone(),
+                ));
             }
 
             // Take the gas used and use a headroom factor on it
-            let adjusted_max_gas = adjust_gas_headroom(
-                simulated_txn.info.gas_used(),
-                simulated_txn
-                    .transaction
-                    .as_signed_user_txn()
-                    .expect("Should be signed user transaction")
-                    .max_gas_amount(),
-            );
+            let gas_used = simulated_txn.info.gas_used.0;
+            let adjusted_max_gas =
+                adjust_gas_headroom(gas_used, simulated_txn.request.max_gas_amount.0);
 
             // Ask if you want to accept the estimate amount
             let upper_cost_bound = adjusted_max_gas * gas_unit_price;
-            let lower_cost_bound = simulated_txn.info.gas_used() * gas_unit_price;
+            let lower_cost_bound = gas_used * gas_unit_price;
             let message = format!(
                     "Do you want to submit a transaction for a range of [{} - {}] Octas at a gas unit price of {} Octas?",
                     lower_cost_bound,
@@ -1369,9 +1417,10 @@ impl TransactionOptions {
         };
 
         // Sign and submit transaction
-        let transaction_factory = TransactionFactory::new(chain_id(&client).await?)
+        let transaction_factory = TransactionFactory::new(chain_id)
             .with_gas_unit_price(gas_unit_price)
-            .with_max_gas_amount(max_gas);
+            .with_max_gas_amount(max_gas)
+            .with_transaction_expiration_time(self.gas_options.expiration_secs);
         let sender_account = &mut LocalAccount::new(sender_address, sender_key, sequence_number);
         let transaction =
             sender_account.sign_with_transaction_builder(transaction_factory.payload(payload));
@@ -1381,69 +1430,6 @@ impl TransactionOptions {
             .map_err(|err| CliError::ApiError(err.to_string()))?;
 
         Ok(response.into_inner())
-    }
-
-    pub async fn simulate_transaction(
-        &self,
-        payload: TransactionPayload,
-        gas_price: Option<u64>,
-        amount_transfer: Option<u64>,
-    ) -> CliTypedResult<UserTransaction> {
-        let client = self.rest_client()?;
-        let (sender_key, sender_address) = self.get_key_and_address()?;
-
-        // Get sequence number for account
-        let sequence_number = get_sequence_number(&client, sender_address).await?;
-
-        // Estimate gas price if necessary
-        let gas_price = if let Some(gas_price) = gas_price {
-            gas_price
-        } else {
-            self.estimate_gas_price().await?
-        };
-        // Simulate transaction
-        // To get my known possible max gas, I need to get my current balance
-        let account_balance = client
-            .get_account_balance(sender_address)
-            .await?
-            .into_inner()
-            .coin
-            .value
-            .0;
-
-        let max_possible_gas = if gas_price == 0 {
-            MAX_POSSIBLE_GAS_UNITS
-        } else if let Some(amount) = amount_transfer {
-            std::cmp::min(
-                account_balance
-                    .saturating_sub(amount)
-                    .saturating_div(gas_price),
-                MAX_POSSIBLE_GAS_UNITS,
-            )
-        } else {
-            std::cmp::min(
-                account_balance.saturating_div(gas_price),
-                MAX_POSSIBLE_GAS_UNITS,
-            )
-        };
-
-        let transaction_factory = TransactionFactory::new(chain_id(&client).await?)
-            .with_gas_unit_price(gas_price)
-            .with_max_gas_amount(max_possible_gas);
-
-        let unsigned_transaction = transaction_factory
-            .payload(payload)
-            .sender(sender_address)
-            .sequence_number(sequence_number)
-            .build();
-
-        let signed_transaction = SignedTransaction::new(
-            unsigned_transaction,
-            sender_key.public_key(),
-            Ed25519Signature::try_from([0u8; 64].as_ref()).unwrap(),
-        );
-        let txns = client.simulate(&signed_transaction).await?.into_inner();
-        Ok(txns.first().unwrap().clone())
     }
 
     pub async fn estimate_gas_price(&self) -> CliTypedResult<u64> {

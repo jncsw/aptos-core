@@ -8,7 +8,6 @@ use aptos_types::{
     transaction::{Script, WriteSetPayload},
 };
 use handlebars::Handlebars;
-
 use move_command_line_common::env::get_bytecode_version_from_env;
 use move_compiler::{compiled_unit::AnnotatedCompiledUnit, Compiler, Flags};
 use serde::Serialize;
@@ -21,8 +20,10 @@ pub const SCRIPTS_DIR_PATH: &str = "templates";
 pub fn compile_script(source_file_str: String) -> Vec<u8> {
     let (_files, mut compiled_program) = Compiler::from_files(
         vec![source_file_str],
-        cached_packages::head_release_bundle().files().unwrap(),
-        framework::named_addresses().clone(),
+        aptos_cached_packages::head_release_bundle()
+            .files()
+            .unwrap(),
+        aptos_framework::named_addresses().clone(),
     )
     .set_flags(Flags::empty().set_sources_shadow_deps(false))
     .build_and_report()

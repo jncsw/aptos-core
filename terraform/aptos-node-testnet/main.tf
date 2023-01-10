@@ -19,6 +19,8 @@ locals {
 module "validator" {
   source = "../aptos-node/aws"
 
+  manage_via_tf = var.manage_via_tf
+
   maximize_single_az_capacity = var.maximize_single_az_capacity
 
   region   = var.region
@@ -44,7 +46,7 @@ module "validator" {
   chain_id       = local.chain_id
   era            = var.era
   chain_name     = local.chain_name
-  image_tag      = var.image_tag
+  image_tag      = var.validator_image_tag != "" ? var.validator_image_tag : var.image_tag
   validator_name = "aptos-node"
 
   validator_storage_class = var.validator_storage_class
@@ -94,6 +96,7 @@ locals {
   genesis_helm_chart_path = "${path.module}/../helm/genesis"
 }
 
+
 resource "helm_release" "genesis" {
   name        = "genesis"
   chart       = local.genesis_helm_chart_path
@@ -124,9 +127,13 @@ resource "helm_release" "genesis" {
     }),
     jsonencode(var.genesis_helm_values)
   ]
-  # inspired by https://stackoverflow.com/a/66501021 to trigger redeployment whenever any of the charts file contents change.
-  set {
-    name  = "chart_sha1"
-    value = sha1(join("", [for f in fileset(local.genesis_helm_chart_path, "**") : filesha1("${local.genesis_helm_chart_path}/${f}")]))
+
+  dynamic "set" {
+    for_each = var.manage_via_tf ? toset([""]) : toset([])
+    content {
+      # inspired by https://stackoverflow.com/a/66501021 to trigger redeployment whenever any of the charts file contents change.
+      name  = "chart_sha1"
+      value = sha1(join("", [for f in fileset(local.genesis_helm_chart_path, "**") : filesha1("${local.genesis_helm_chart_path}/${f}")]))
+    }
   }
 }

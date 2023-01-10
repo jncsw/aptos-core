@@ -27,6 +27,6 @@ async fn main() {
         Err(inner) => {
             println!("{}", inner);
             exit(1);
-        }
+        },
     }
 }

@@ -12,21 +12,20 @@ pub use response::Response;
 pub mod state;
 pub mod types;
 
+use crate::{
+    aptos::{AptosVersion, Balance},
+    error::RestError,
+};
+use anyhow::{anyhow, Result};
 pub use aptos_api_types::{
     self, IndexResponseBcs, MoveModuleBytecode, PendingTransaction, Transaction,
 };
-pub use state::State;
-pub use types::{deserialize_from_prefixed_hex_string, Account, Resource};
-
-use crate::aptos::{AptosVersion, Balance};
-use crate::error::RestError;
-use anyhow::{anyhow, Result};
 use aptos_api_types::{
     deserialize_from_string,
     mime_types::{BCS, BCS_SIGNED_TRANSACTION as BCS_CONTENT_TYPE},
-    AptosError, BcsBlock, Block, Bytecode, ExplainVMStatus, GasEstimation, HexEncodedBytes,
-    IndexResponse, MoveModuleId, TransactionData, TransactionOnChainData,
-    TransactionsBatchSubmissionResult, UserTransaction, VersionedEvent,
+    AptosError, BcsBlock, Block, GasEstimation, HexEncodedBytes, IndexResponse, MoveModuleId,
+    TransactionData, TransactionOnChainData, TransactionsBatchSubmissionResult, UserTransaction,
+    VersionedEvent,
 };
 use aptos_crypto::HashValue;
 use aptos_logger::{debug, info, sample, sample::SampleRate};
@@ -36,18 +35,17 @@ use aptos_types::{
     contract_event::EventWithVersion,
     transaction::SignedTransaction,
 };
-use futures::executor::block_on;
-use move_binary_format::CompiledModule;
-use move_core_types::language_storage::{ModuleId, StructTag};
-use reqwest::header::ACCEPT;
-use reqwest::{header::CONTENT_TYPE, Client as ReqwestClient, StatusCode};
+use move_core_types::language_storage::StructTag;
+use reqwest::{
+    header::{ACCEPT, CONTENT_TYPE},
+    Client as ReqwestClient, StatusCode,
+};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
-use std::future::Future;
-use std::rc::Rc;
-use std::time::Duration;
+pub use state::State;
+use std::{collections::BTreeMap, future::Future, time::Duration};
 use tokio::time::Instant;
+pub use types::{deserialize_from_prefixed_hex_string, Account, Resource};
 use url::Url;
 
 pub const USER_AGENT: &str = concat!("aptos-client-sdk-rust / ", env!("CARGO_PKG_VERSION"));
@@ -89,7 +87,7 @@ impl Client {
                 } else {
                     path.to_string()
                 }
-            }
+            },
         };
 
         Self {
@@ -120,7 +118,7 @@ impl Client {
         Ok(self)
     }
 
-    fn build_path(&self, path: &str) -> AptosResult<Url> {
+    pub fn build_path(&self, path: &str) -> AptosResult<Url> {
         Ok(self.base_url.join(&self.version_path_base)?.join(path)?)
     }
 
@@ -326,6 +324,30 @@ impl Client {
         self.json(response).await
     }
 
+    pub async fn simulate_with_gas_estimation(
+        &self,
+        txn: &SignedTransaction,
+        estimate_max_gas_amount: bool,
+        estimate_max_gas_unit_price: bool,
+    ) -> AptosResult<Response<Vec<UserTransaction>>> {
+        let txn_payload = bcs::to_bytes(txn)?;
+
+        let url = self.build_path(&format!(
+            "transactions/simulate?estimate_max_gas_amount={}&estimate_gas_unit_price={}",
+            estimate_max_gas_amount, estimate_max_gas_unit_price
+        ))?;
+
+        let response = self
+            .inner
+            .post(url)
+            .header(CONTENT_TYPE, BCS_CONTENT_TYPE)
+            .body(txn_payload)
+            .send()
+            .await?;
+
+        self.json(response).await
+    }
+
     pub async fn simulate_bcs(
         &self,
         txn: &SignedTransaction,
@@ -422,6 +444,7 @@ impl Client {
             .await?;
         self.json(response).await
     }
+
     pub async fn submit_batch_bcs(
         &self,
         txns: &[SignedTransaction],
@@ -547,24 +570,24 @@ impl Client {
         let start = std::time::Instant::now();
         loop {
             let mut chain_timestamp_usecs = None;
-            match fetch(hash).await? {
-                WaitForTransactionResult::Success(result) => {
+            match fetch(hash).await {
+                Ok(WaitForTransactionResult::Success(result)) => {
                     return Ok(result);
-                }
-                WaitForTransactionResult::FailedExecution(vm_status) => {
+                },
+                Ok(WaitForTransactionResult::FailedExecution(vm_status)) => {
                     return Err(anyhow!(
                         "Transaction committed on chain, but failed execution: {}",
                         vm_status
                     ))?;
-                }
-                WaitForTransactionResult::Pending(state) => {
+                },
+                Ok(WaitForTransactionResult::Pending(state)) => {
                     reached_mempool = true;
                     if expiration_timestamp_secs <= state.timestamp_usecs / 1_000_000 {
                         return Err(anyhow!("Transaction expired. It is guaranteed it will not be committed on chain.").into());
                     }
                     chain_timestamp_usecs = Some(state.timestamp_usecs);
-                }
-                WaitForTransactionResult::NotFound(error) => {
+                },
+                Ok(WaitForTransactionResult::NotFound(error)) => {
                     if let RestError::Api(aptos_error_response) = error {
                         if let Some(state) = aptos_error_response.state {
                             if expiration_timestamp_secs <= state.timestamp_usecs / 1_000_000 {
@@ -596,7 +619,10 @@ impl Client {
                             self.path_prefix_string(),
                         )
                     );
-                }
+                },
+                Err(err) => {
+                    debug!("Fetching error, will retry: {}", err);
+                },
             }
 
             if let Some(max_server_lag_wait_duration) = max_server_lag_wait {
@@ -1005,6 +1031,17 @@ impl Client {
         Ok(response.map(|inner| inner.to_vec()))
     }
 
+    pub async fn get_account_resource_bytes(
+        &self,
+        address: AccountAddress,
+        resource_type: &str,
+    ) -> AptosResult<Response<Vec<u8>>> {
+        let url = self.build_path(&format!("accounts/{}/resource/{}", address, resource_type))?;
+
+        let response = self.get_bcs(url).await?;
+        Ok(response.map(|inner| inner.to_vec()))
+    }
+
     pub async fn get_account_resource_at_version(
         &self,
         address: AccountAddress,
@@ -1366,7 +1403,7 @@ impl Client {
                 Err(err) => match err {
                     RestError::Api(inner) => {
                         should_retry(inner.status_code, Some(inner.error.clone()))
-                    }
+                    },
                     RestError::Http(status_code, _e) => should_retry(*status_code, None),
                     RestError::Bcs(_)
                     | RestError::Json(_)
@@ -1549,16 +1586,4 @@ enum WaitForTransactionResult<T> {
     FailedExecution(String),
     Pending(State),
     Success(Response<T>),
-}
-
-impl ExplainVMStatus for Client {
-    // TODO: Add some caching
-    fn get_module_bytecode(&self, module_id: &ModuleId) -> Result<Rc<dyn Bytecode>> {
-        let bytes =
-            block_on(self.get_account_module_bcs(*module_id.address(), module_id.name().as_str()))?
-                .into_inner();
-
-        let compiled_module = CompiledModule::deserialize(bytes.as_ref())?;
-        Ok(Rc::new(compiled_module) as Rc<dyn Bytecode>)
-    }
 }

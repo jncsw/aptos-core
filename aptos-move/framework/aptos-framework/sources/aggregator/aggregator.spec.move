@@ -1,25 +1,32 @@
 spec aptos_framework::aggregator {
     spec module {
-        pragma verify = false;
+        pragma verify = true;
     }
 
-    spec add {
+    spec add(aggregator: &mut Aggregator, value: u128) {
         // TODO: temporary mockup.
         pragma opaque;
+        aborts_if false;
     }
 
-    spec sub {
+    spec sub(aggregator: &mut Aggregator, value: u128) {
         // TODO: temporary mockup.
         pragma opaque;
+        aborts_if false;
     }
 
-    spec read {
+    spec read(aggregator: &Aggregator): u128 {
         // TODO: temporary mockup.
         pragma opaque;
+        aborts_if false;
+        ensures result == spec_read(aggregator);
+        ensures result <= aggregator.limit;
     }
 
-    spec destroy {
-        // TODO: temporary mockup.
+    spec destroy(aggregator: Aggregator) {
         pragma opaque;
+        aborts_if false;
     }
+
+    spec fun spec_read(aggregator: Aggregator): u128;
 }

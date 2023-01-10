@@ -2,14 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::natives::helpers::make_module_natives;
-use gas_algebra_ext::{AbstractValueSize, InternalGasPerAbstractValueUnit};
+use aptos_gas_algebra_ext::{AbstractValueSize, InternalGasPerAbstractValueUnit};
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::gas_algebra::InternalGas;
 use move_vm_runtime::native_functions::{NativeContext, NativeFunction};
 use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
 };
-
 use smallvec::smallvec;
 use std::{collections::VecDeque, sync::Arc};
 

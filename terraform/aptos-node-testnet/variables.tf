@@ -83,8 +83,13 @@ variable "chain_name" {
 }
 
 variable "image_tag" {
-  description = "Docker image tag for Aptos node"
+  description = "Docker image tag for all Aptos workloads, including validators, fullnodes, backup, restore, genesis, and other tooling"
   default     = "devnet"
+}
+
+variable "validator_image_tag" {
+  description = "Docker image tag for validators and fullnodes. If set, overrides var.image_tag for those nodes"
+  default     = ""
 }
 
 ### Helm values
@@ -206,4 +211,9 @@ variable "fullnode_storage_class" {
     condition     = contains(["gp3", "io1", "io2"], var.fullnode_storage_class)
     error_message = "Supported storage classes are gp3, io1, io2"
   }
+}
+
+variable "manage_via_tf" {
+  description = "Whether to manage the aptos-node k8s workload via Terraform"
+  default     = true
 }

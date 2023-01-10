@@ -3,9 +3,11 @@
 
 use crate::smoke_test_environment::SwarmBuilder;
 use aptos_config::config::NodeConfig;
-use forge::{NodeExt, Swarm};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use aptos_forge::{NodeExt, Swarm};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 const MAX_WAIT_SECS: u64 = 60;
 

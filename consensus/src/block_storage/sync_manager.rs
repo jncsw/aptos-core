@@ -11,13 +11,7 @@ use crate::{
     state_replication::StateComputer,
 };
 use anyhow::{bail, Context};
-use aptos_crypto::HashValue;
-use aptos_logger::prelude::*;
-use aptos_types::{
-    account_address::AccountAddress, epoch_change::EpochChangeProof,
-    ledger_info::LedgerInfoWithSignatures,
-};
-use consensus_types::{
+use aptos_consensus_types::{
     block::Block,
     block_retrieval::{
         BlockRetrievalRequest, BlockRetrievalResponse, BlockRetrievalStatus,
@@ -26,6 +20,12 @@ use consensus_types::{
     common::Author,
     quorum_cert::QuorumCert,
     sync_info::SyncInfo,
+};
+use aptos_crypto::HashValue;
+use aptos_logger::prelude::*;
+use aptos_types::{
+    account_address::AccountAddress, epoch_change::EpochChangeProof,
+    ledger_info::LedgerInfoWithSignatures,
 };
 use fail::fail_point;
 use rand::{prelude::*, Rng};
@@ -470,7 +470,7 @@ impl BlockRetriever {
                     progress += batch.len() as u64;
                     last_block_id = batch.last().unwrap().parent_id();
                     result_blocks.extend(batch);
-                }
+                },
                 Ok(result)
                     if matches!(result.status(), BlockRetrievalStatus::SucceededWithTarget) =>
                 {
@@ -478,7 +478,7 @@ impl BlockRetriever {
                     let batch = result.blocks().clone();
                     result_blocks.extend(batch);
                     break;
-                }
+                },
                 e => {
                     warn!(
                         remote_peer = peer,
@@ -496,7 +496,7 @@ impl BlockRetriever {
                     }
                     failed_attempt += 1;
                     peer = self.pick_peer(failed_attempt, peers);
-                }
+                },
             }
         }
         assert_eq!(result_blocks.last().unwrap().id(), target_block_id);

@@ -1,14 +1,16 @@
 // Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::smoke_test_environment::SwarmBuilder;
-use crate::test_utils::{assert_balance, create_and_fund_account, transfer_coins};
+use crate::{
+    smoke_test_environment::SwarmBuilder,
+    test_utils::{assert_balance, create_and_fund_account, transfer_coins},
+};
 use aptos_config::{
     config::{DiscoveryMethod, NodeConfig, Peer, PeerRole, HANDSHAKE_VERSION},
     network_id::NetworkId,
 };
+use aptos_forge::{LocalSwarm, NodeExt, Swarm, SwarmExt};
 use aptos_types::network_address::{NetworkAddress, Protocol};
-use forge::{LocalSwarm, NodeExt, Swarm, SwarmExt};
 use std::{
     collections::HashSet,
     net::Ipv4Addr,
