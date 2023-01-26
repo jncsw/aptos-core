@@ -18,7 +18,7 @@ struct Opt {
 }
 
 /// The default number of items to generate in a corpus.
-const GENERATE_DEFAULT_ITEMS: usize = 128;
+const GENERATE_DEFAULT_ITEMS: usize = 1;
 /// A stringified form of `GENERATE_DEFAULT_ITEMS`.
 ///
 /// Required because structopt only accepts strings as default values.

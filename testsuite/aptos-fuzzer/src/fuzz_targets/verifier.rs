@@ -6,7 +6,6 @@ use crate::FuzzTargetImpl;
 
 use aptos_proptest_helpers::ValueGenerator;
 use move_binary_format::file_format::CompiledModule;
-use proptest::prelude::*;
 use move_bytecode_verifier::{verify_module};
 
 use move_binary_format::{
@@ -15,23 +14,24 @@ use move_binary_format::{
 
 
 #[derive(Clone, Debug, Default)]
-pub struct OverflowFuzzer;
-impl FuzzTargetImpl for OverflowFuzzer {
+pub struct VerifierFuzzer;
+impl FuzzTargetImpl for VerifierFuzzer {
     fn description(&self) -> &'static str {
-        "Overflow fuzzer for Aptos VM"
+        "Verify the bytecode verifier of Move module"
     }
-    fn generate(&self, _idx: usize, gen: &mut ValueGenerator) -> Option<Vec<u8>> {
-        println!("Generating corpus for target: Overflowfuzzer");
-        let value = gen.generate(any_with::<CompiledModule>(16));
-        let mut out = vec![];
-        value
-            .serialize(&mut out)
-            .expect("serialization should work");
-        Some(out)
+    fn generate(&self, _idx: usize, _gen: &mut ValueGenerator) -> Option<Vec<u8>> {
+        println!("Generating corpus for target: VerifierFuzzer.");
+        println!("We should use the pattern bytecode as input.");
+        // let value = gen.generate(any_with::<CompiledModule>(16));
+        // let mut out = vec![];
+        // value
+        //     .serialize(&mut out)
+        //     .expect("serialization should work");
+        // Some(out)
+        None
     }
 
     fn fuzz(&self, data: &[u8]) {
-
         // println!("Fuzzing target: Overflowfuzzer: {:?} bytes", data);
         let module = CompiledModule::deserialize(data);
         match module {
@@ -46,7 +46,7 @@ impl FuzzTargetImpl for OverflowFuzzer {
 
                     },
                     Err(err) => { // Expected error
-                        println!("Verification failed: {:?}", err);
+                        // println!("Verification failed: {:?}", err);
                         print_error_and_exit(&err);
                     }
                 }
