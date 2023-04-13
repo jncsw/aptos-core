@@ -29,6 +29,10 @@ pub struct DocgenOptions {
     #[clap(long)]
     pub include_dep_diagram: bool,
 
+    /// Whether to include call diagrams in the generated docs. Defaults to false.
+    #[clap(long)]
+    pub include_call_diagrams: bool,
+
     /// Whether details should be put into collapsed sections. This is not supported by
     /// all markdown, but the github dialect. Defaults to false.
     #[clap(long)]
@@ -92,7 +96,7 @@ impl DocgenOptions {
                 .unwrap_or_else(Vec::new),
             references_file: self.references_file.clone(),
             include_dep_diagrams: self.include_dep_diagram,
-            include_call_diagrams: false,
+            include_call_diagrams: self.include_call_diagrams,
             compile_relative_to_output_dir: false,
         };
         let output = move_docgen::Docgen::new(model, &options).gen();

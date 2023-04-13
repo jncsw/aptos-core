@@ -107,6 +107,7 @@ impl ReleaseTarget {
                     include_specs: true,
                     specs_inlined: false,
                     include_dep_diagram: false,
+                    include_call_diagrams: false,
                     collapsed_sections: true,
                     landing_page_template: Some("doc_template/overview.md".to_string()),
                     references_file: Some("doc_template/references.md".to_string()),
